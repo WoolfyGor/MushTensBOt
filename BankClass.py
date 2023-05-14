@@ -56,6 +56,7 @@ class Bank:
             localId = id[:id.find(",")]
         else:
             localId = id
+            
         resultUser = self.__CheckInTable(cursor, localId, table,
                                        attribute)  # Если пользователя нет в таблице - вернет None
         if isBank:
@@ -80,8 +81,8 @@ class Bank:
         return res.fetchone()
 
     def __SelectQuerry(self,cursor, idUser, attribute, table,idAttribute=""):  # Производим  выборку атрибута attribute из таблицы table, где id юзера равен idUser
-        self.__OveralCheck(cursor,idUser,self.__UsersTableName__, "User_VkId")
-        self.__OveralCheck(cursor,str(idUser),self.__BankTableName__,"User_VkId",True)
+        self.__OveralCheck(cursor,idUser,self.__UsersTableName__, "User_VkId") #Проверка на наличие в таблице юзеров. Нет - добавят
+        self.__OveralCheck(cursor,str(idUser),self.__BankTableName__,"User_VkId",True)#Проверка на наличие в таблице банка. Нет - добавят
         res = cursor.execute(
             f"Select {attribute} From {table} Where {table}.{idAttribute} = {str(idUser)}")  # проверяем, есть ли юзер в таблице Users
 

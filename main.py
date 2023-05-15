@@ -1,5 +1,6 @@
 import  BankClass
-
+import  MTFeatures
+'''
 if __name__ == "__main__":
 
     bank = BankClass.Bank()
@@ -17,4 +18,7 @@ if __name__ == "__main__":
 
 
 
+'''
 
+if __name__ == "__main__":
+    bank = MTFeatures.MTFeatures("test.db")

@@ -31,6 +31,7 @@ class Database:
             placeholders = ", ".join(["?" for _ in values[0]])
             query = f"INSERT INTO {table_name} VALUES ({placeholders})"
 
+        print(query)
         self.cur.executemany(query, values)
         self.conn.commit()
         return self.cur.lastrowid
@@ -43,6 +44,16 @@ class Database:
         self.cur.execute(query)
         self.conn.commit()
         return self.cur.rowcount
+
+    def update(self, table_name, attribute, amount,where=None):
+        query = f"UPDATE {table_name} SET {attribute} = {attribute} + {amount} "
+        if where:
+            query += f" WHERE {where}"
+            print(query)
+        self.cur.execute(query)
+        self.conn.commit()
+        return self.cur.rowcount
+
 
     def table_exists(self, table_name):
         query = f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'"
@@ -63,39 +74,48 @@ class MTFeatures():
 
     def initialTables(self):
         self.db.create_table(self.__UsersTableName__,["Id_User INTEGER PRIMARY KEY AUTOINCREMENT  NOT NULL","User_VkId NUMBER"])
-        self.db.create_table(self.__BankTableName__, ["Id_User INTEGER PRIMARY KEY AUTOINCREMENT  NOT NULL","User_VkId NUMBER"])
+        self.db.create_table(self.__BankTableName__, ["Id_Bank INTEGER PRIMARY KEY AUTOINCREMENT  NOT NULL ", "Id_User NUMBER", "Bank_Currency NUMBER DEFAULT 0"])
         self.db.create_table(self.__UsersStatesTableName__,["Id_UserState INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL "," Id_User NUMBER"," Id_State NUMBER DEFAULT 0"])
-        self.db.create_table(self.__StatesTableName__, ["Id_State INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL ","State_Num NUMBER NOT NULL"," StateName TEXT NOT NULL"])
-        if not self.db.table_exists(self.__StatesTableName__):
-            self.db.insert(self.__StatesTableName__,[(0,"Default"),(1,"Ignored"),(2,"WhiteList"),(3,"Owner"),(4,"IgnorePrev")],["State_Num","StateName"])
+        self.db.create_table(self.__StatesTableName__, ["Id_State INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL ","State_Num NUMBER NOT NULL"," State_Name TEXT NOT NULL"])
+        res = self.db.select(self.__StatesTableName__, ["Id_State"])
+        if len(res)<1:
+            self.db.insert(self.__StatesTableName__,[(0,"Default"),(1,"Ignored"),(2,"WhiteList"),(3,"Owner"),(4,"IgnorePrev")],["State_Num","State_Name"])
 
-    def GetOrCreateUser(self):
+    def GetOrCreateUser(self,id):
+        res = self.db.select(self.__UsersTableName__,["Id_User"],f"User_VkId= {id}")
+        if len(res) > 0:
+            return res[0]
+        else:
+            print("No user")
+            return self.AddUser(id)
 
 
-        
+    def AddUser(self,id):
+        self.db.insert(self.__UsersTableName__,[(id,)],["User_VkId"])
+        res = self.db.select(self.__UsersTableName__, ["Id_User"], f"User_VkId= {id}")
+        self.db.insert(self.__BankTableName__, [(res[0][0],)], ["Id_User"])
+        self.db.insert(self.__UsersStatesTableName__, [(res[0][0],)], ["Id_User"])
+        return res[0]
+
     def __DoAction(self,action, idUser,amount=None):  # В зависимости от action выполняем разные действия - прибалвяем баллы, вычитаем баллы, получаем баланс
-
-        vkId = self.db.select(self.)
+        id = self.GetOrCreateUser(idUser)
         if action == "Add":
             print(f"Adding to user {idUser} {amount} points")
-            res = self.__UpdateQuery( idUser,
-                              amount)  # Результат - turple в формате (итого, на_сколько_изменяли, сколько_было)
+            res = self.db.update(self.__BankTableName__,"Bank_Currency",amount,f"Id_User = {id[0]}")
 
         elif action == "Subs":
-            print(f"Substract from user {idUser} {amount} points")
-            res = self.__UpdateQuery( idUser,
-                              amount)  # Результат - turple в формате (итого, на_сколько_изменяли, сколько_было)
+            print(f"Adding to user {idUser} {amount} points")
+            res = self.db.update(self.__BankTableName__, "Bank_Currency", -amount, f"Id_User = {id[0]}")
 
         elif action == "Balance":
-            res = self.db.select(self.__BankTableName__,"Bank_Currency",)
-            res = self.__SelectQuerry(idUser, "Bank_Currency", self.__BankTableName__,"User_VkId")  # Результат - число - текущий баланс
+            res = self.db.select(self.__BankTableName__,["Bank_Currency"] )
 
         return res
 
     def BankAddPoints(self,id, amount):
         """Добавляет пользователю по его id некоторое (amount) кол-во баллов. Если пользователь есть в бд - обновит его кол-во баллов. Если нет - добавит в таблицы с 0 по умолчанию и добавит к 0.
          \n Возвращает turple в формате : \n(итого, на_сколько_изменяли, сколько_было)"""
-        final = int(self.__DoAction("Add", id, amount)[0])
+        final = int(self.__DoAction("Add", id, amount))
         return (final, amount, final - amount)
 
     def BankSubstractPoints(self,id, amount):
@@ -103,15 +123,15 @@ class MTFeatures():
         \nВозвращает turple в формате : \n(итого, на_сколько_изменяли, сколько_было)
         """
 
-        final = int(self.__DoAction("Subs", id, -amount)[0])
-        return (final, amount, final + amount)
+        final = int(self.__DoAction("Subs", id, amount))
+        return (final, amount, final - amount)
 
     def BankGetBalance(self,id):
         """Ищет баланс пользователя с некоторым id. Если пользователя нет в бд - добавит и вернет его кол-ко баллов (0).
         \nВозвращает число - кол-во баллов
         """
         final = self.__DoAction("Balance", id)
-        return final.fetchone()[0]
+        return final
 
 
     def __init__(self,dbName):

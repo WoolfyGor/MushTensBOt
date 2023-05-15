@@ -22,3 +22,5 @@ if __name__ == "__main__":
 
 if __name__ == "__main__":
     bank = MTFeatures.MTFeatures("test.db")
+    res = bank.BankAddPoints(11266123,50)
+    print(res)

@@ -80,7 +80,7 @@ class MTFeatures():
         #Создание основных таблиц
         self.__db.create_table(self.__UsersTableName,["Id_User INTEGER PRIMARY KEY AUTOINCREMENT  NOT NULL","User_VkId NUMBER"])
         self.__db.create_table(self.__BankTableName, ["Id_Bank INTEGER PRIMARY KEY AUTOINCREMENT  NOT NULL ", "Id_User NUMBER", "Bank_Currency NUMBER DEFAULT 0"])
-        self.__db.create_table(self.__UsersStatesTableName,["Id_UserState INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL "," Id_User NUMBER"," Id_State NUMBER DEFAULT 0"])
+        self.__db.create_table(self.__UsersStatesTableName,["Id_UserState INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL "," Id_User NUMBER"," Id_State NUMBER DEFAULT 1"])
         self.__db.create_table(self.__StatesTableName, ["Id_State INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL ","State_Num NUMBER NOT NULL"," State_Name TEXT NOT NULL"])
         res = self.__db.select(self.__StatesTableName, ["Id_State"])
         if len(res)<1: #Если ещё не заполняли таблицу State, то вносим в нее стандартные значения в поля

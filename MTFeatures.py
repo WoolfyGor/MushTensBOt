@@ -101,21 +101,21 @@ class MTFeatures():
         id = self.GetOrCreateUser(idUser)
         if action == "Add":
             print(f"Adding to user {idUser} {amount} points")
-            res = self.db.update(self.__BankTableName__,"Bank_Currency",amount,f"Id_User = {id[0]}")
-
+            self.db.update(self.__BankTableName__,"Bank_Currency",amount,f"Id_User = {id[0]}")
+            res = self.db.select(self.__BankTableName__, ["Bank_Currency"], f"Id_User = {id[0]}")
         elif action == "Subs":
             print(f"Adding to user {idUser} {amount} points")
-            res = self.db.update(self.__BankTableName__, "Bank_Currency", -amount, f"Id_User = {id[0]}")
-
+            self.db.update(self.__BankTableName__, "Bank_Currency", -amount, f"Id_User = {id[0]}")
+            res = self.db.select(self.__BankTableName__,["Bank_Currency"],f"Id_User = {id[0]}")
         elif action == "Balance":
-            res = self.db.select(self.__BankTableName__,["Bank_Currency"] )
+            res = self.db.select(self.__BankTableName__,["Bank_Currency"],f"Id_User = {id[0]}" )
 
         return res
 
     def BankAddPoints(self,id, amount):
         """Добавляет пользователю по его id некоторое (amount) кол-во баллов. Если пользователь есть в бд - обновит его кол-во баллов. Если нет - добавит в таблицы с 0 по умолчанию и добавит к 0.
          \n Возвращает turple в формате : \n(итого, на_сколько_изменяли, сколько_было)"""
-        final = int(self.__DoAction("Add", id, amount))
+        final = int(self.__DoAction("Add", id, amount)[0][0])
         return (final, amount, final - amount)
 
     def BankSubstractPoints(self,id, amount):
@@ -123,15 +123,15 @@ class MTFeatures():
         \nВозвращает turple в формате : \n(итого, на_сколько_изменяли, сколько_было)
         """
 
-        final = int(self.__DoAction("Subs", id, amount))
-        return (final, amount, final - amount)
+        final = int(self.__DoAction("Subs", id, amount)[0][0])
+        return (final + amount, amount,final )
 
     def BankGetBalance(self,id):
         """Ищет баланс пользователя с некоторым id. Если пользователя нет в бд - добавит и вернет его кол-ко баллов (0).
         \nВозвращает число - кол-во баллов
         """
         final = self.__DoAction("Balance", id)
-        return final
+        return final[0][0]
 
 
     def __init__(self,dbName):

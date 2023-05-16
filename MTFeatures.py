@@ -1,16 +1,19 @@
 import sqlite3
 
 class Database:
-    def __init__(self, db):
+
+    def __init__(self, db, debug):
         self.conn = sqlite3.connect(db)
         self.cur = self.conn.cursor()
+        self._debug_ = debug
 
-    def create_table(self, table_name, columns):
+    def create_table(self, table_name, columns):#Классическое создание таблицы в sql
+
         query = f"CREATE TABLE IF NOT EXISTS {table_name} ({', '.join(columns)})"
         self.cur.execute(query)
         self.conn.commit()
 
-    def select(self, table_name, columns, where=None, order_by=None, limit=None):
+    def select(self, table_name, columns, where=None, order_by=None, limit=None):#Классическое select запрос на выборку в sql
         query = f"SELECT {', '.join(columns)} FROM {table_name}"
         if where:
             query += f" WHERE {where}"
@@ -18,12 +21,12 @@ class Database:
             query += f" ORDER BY {order_by}"
         if limit:
             query += f" LIMIT {limit}"
-
+        if self._debug_ : print(query)
         self.cur.execute(query)
         rows = self.cur.fetchall()
         return rows
 
-    def insert(self, table_name, values, columns=None):
+    def insert(self, table_name, values, columns=None):#Классическое insert запрос на внесение данных в sql
         if columns:
             placeholders = ", ".join(["?" for _ in columns])
             query = f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES ({placeholders})"
@@ -31,31 +34,32 @@ class Database:
             placeholders = ", ".join(["?" for _ in values[0]])
             query = f"INSERT INTO {table_name} VALUES ({placeholders})"
 
-        print(query)
+        if self._debug_ : print(query)
         self.cur.executemany(query, values)
         self.conn.commit()
         return self.cur.lastrowid
 
-    def update(self, table_name, set_values, where=None):
+    def updateCl(self, table_name, set_values, where=None): #Классическое update запрос на измнение данных в sql
         query = f"UPDATE {table_name} SET {', '.join(set_values)}"
         if where:
             query += f" WHERE {where}"
-
+        if self._debug_ : print(query)
         self.cur.execute(query)
         self.conn.commit()
         return self.cur.rowcount
 
-    def update(self, table_name, attribute, amount,where=None):
+    def update(self, table_name, attribute, amount,where=None):#Update запрос с изменением некоторого поля на amount
         query = f"UPDATE {table_name} SET {attribute} = {attribute} + {amount} "
         if where:
             query += f" WHERE {where}"
-            print(query)
+
+        if self._debug_ : print(query)
         self.cur.execute(query)
         self.conn.commit()
         return self.cur.rowcount
 
 
-    def table_exists(self, table_name):
+    def table_exists(self, table_name): #проверка на существование таблицы
         query = f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'"
         self.cur.execute(query)
         result = self.cur.fetchone()
@@ -65,76 +69,102 @@ class Database:
         self.conn.close()
 
 class MTFeatures():
-    __dbName__ = "debug.db"  # Контстанты, которые можно изменять - название бд
+    __dbName= "debug.db"  # Контстанты, которые можно изменять - название бд
     """Название бд, к которой будет идти коннект"""
-    __BankTableName__ = "Bank"  # Название таблицы для счета
-    __UsersTableName__ = "Users"  # Название таблицы юзеров
-    __UsersStatesTableName__ = "UserStates"
-    __StatesTableName__ = "States"
+    __BankTableName= "Bank"  # Название таблицы для счета
+    __UsersTableName = "Users"  # Название таблицы юзеров
+    __UsersStatesTableName = "UserStates" # название таблицы для статусов пользователей
+    __StatesTableName = "States" # название таблицы для статусов (всего перечня)
+    _debug_ = False #если True - будет писать промежуточные логи.
+    def __initialTables(self): #Первичная инициация бд вместе с таблицами и значениями по умолчанию
+        #Создание основных таблиц
+        self.__db.create_table(self.__UsersTableName,["Id_User INTEGER PRIMARY KEY AUTOINCREMENT  NOT NULL","User_VkId NUMBER"])
+        self.__db.create_table(self.__BankTableName, ["Id_Bank INTEGER PRIMARY KEY AUTOINCREMENT  NOT NULL ", "Id_User NUMBER", "Bank_Currency NUMBER DEFAULT 0"])
+        self.__db.create_table(self.__UsersStatesTableName,["Id_UserState INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL "," Id_User NUMBER"," Id_State NUMBER DEFAULT 0"])
+        self.__db.create_table(self.__StatesTableName, ["Id_State INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL ","State_Num NUMBER NOT NULL"," State_Name TEXT NOT NULL"])
+        res = self.__db.select(self.__StatesTableName, ["Id_State"])
+        if len(res)<1: #Если ещё не заполняли таблицу State, то вносим в нее стандартные значения в поля
+            self.__db.insert(self.__StatesTableName,[(0,"Default"),(1,"Ignored"),(2,"WhiteList"),(3,"Owner"),(4,"IgnorePrev")],["State_Num","State_Name"])
 
-    def initialTables(self):
-        self.db.create_table(self.__UsersTableName__,["Id_User INTEGER PRIMARY KEY AUTOINCREMENT  NOT NULL","User_VkId NUMBER"])
-        self.db.create_table(self.__BankTableName__, ["Id_Bank INTEGER PRIMARY KEY AUTOINCREMENT  NOT NULL ", "Id_User NUMBER", "Bank_Currency NUMBER DEFAULT 0"])
-        self.db.create_table(self.__UsersStatesTableName__,["Id_UserState INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL "," Id_User NUMBER"," Id_State NUMBER DEFAULT 0"])
-        self.db.create_table(self.__StatesTableName__, ["Id_State INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL ","State_Num NUMBER NOT NULL"," State_Name TEXT NOT NULL"])
-        res = self.db.select(self.__StatesTableName__, ["Id_State"])
-        if len(res)<1:
-            self.db.insert(self.__StatesTableName__,[(0,"Default"),(1,"Ignored"),(2,"WhiteList"),(3,"Owner"),(4,"IgnorePrev")],["State_Num","State_Name"])
-
-    def GetOrCreateUser(self,id):
-        res = self.db.select(self.__UsersTableName__,["Id_User"],f"User_VkId= {id}")
+    def __GetOrCreateUser(self,id): #Проверяем, есть ли пользователь в таблице юзеров. Есть - возвращаем id из бд. Нет - создаем, добавляем во все таблицы основные и возвращаем id из бд
+        res = self.__db.select(self.__UsersTableName,["Id_User"],f"User_VkId= {id}")
         if len(res) > 0:
             return res[0]
         else:
-            print("No user")
-            return self.AddUser(id)
+            if self._debug_ : print("No user")
+            return self.__AddUser(id)
 
 
-    def AddUser(self,id):
-        self.db.insert(self.__UsersTableName__,[(id,)],["User_VkId"])
-        res = self.db.select(self.__UsersTableName__, ["Id_User"], f"User_VkId= {id}")
-        self.db.insert(self.__BankTableName__, [(res[0][0],)], ["Id_User"])
-        self.db.insert(self.__UsersStatesTableName__, [(res[0][0],)], ["Id_User"])
-        return res[0]
+    def __AddUser(self,id): #Добавление пользователя в бд, если первый раз к нему идет обращение
+        self.__db.insert(self.__UsersTableName,[(id,)],["User_VkId"]) #Вносим в таблицу Users
+        res = self.__db.select(self.__UsersTableName, ["Id_User"], f"User_VkId= {id}")#Получаем id по бд
+        self.__db.insert(self.__BankTableName, [(res[0][0],)], ["Id_User"]) #Добавляем в таблицу банка
+        self.__db.insert(self.__UsersStatesTableName, [(res[0][0],)], ["Id_User"]) #Добавляем в таблицу состояний (статусов)
+        return res[0] #Возращаем id по сетке
 
     def __DoAction(self,action, idUser,amount=None):  # В зависимости от action выполняем разные действия - прибалвяем баллы, вычитаем баллы, получаем баланс
-        id = self.GetOrCreateUser(idUser)
-        if action == "Add":
-            print(f"Adding to user {idUser} {amount} points")
-            self.db.update(self.__BankTableName__,"Bank_Currency",amount,f"Id_User = {id[0]}")
-            res = self.db.select(self.__BankTableName__, ["Bank_Currency"], f"Id_User = {id[0]}")
-        elif action == "Subs":
-            print(f"Adding to user {idUser} {amount} points")
-            self.db.update(self.__BankTableName__, "Bank_Currency", -amount, f"Id_User = {id[0]}")
-            res = self.db.select(self.__BankTableName__,["Bank_Currency"],f"Id_User = {id[0]}")
-        elif action == "Balance":
-            res = self.db.select(self.__BankTableName__,["Bank_Currency"],f"Id_User = {id[0]}" )
+        id = self.__GetOrCreateUser(idUser)[0] #Получаем id пользователя по сетке
+        res = None
+        if action == "Add":#Добавление юзеру очков
+            if self._debug_ : print(f"Adding to user {idUser} {amount} points")
+            self.__db.update(self.__BankTableName,"Bank_Currency",amount,f"Id_User = {id}")
+            res = self.__db.select(self.__BankTableName, ["Bank_Currency"], f"Id_User = {id}")
+        elif action == "Subs": #Вычитание юзеру очков
+            if self._debug_ : print(f"Adding to user {idUser} {amount} points")
+            self.__db.update(self.__BankTableName, "Bank_Currency", -amount, f"Id_User = {id}")
+            res = self.__db.select(self.__BankTableName,["Bank_Currency"],f"Id_User = {id}")
+        elif action == "Balance":# Получение счета юзера
+            if self._debug_: print(f"Get balance of user with id {idUser}")
+            res = self.__db.select(self.__BankTableName,["Bank_Currency"],f"Id_User = {id}" )
+        elif action == "GetState":#Получение статуса пользователя
+            if self._debug_: print(f"Get state of user with id {idUser}")
+            prevState = self.__db.select(self.__UsersStatesTableName, ["Id_State"], f"Id_User = {id}")
+            res = self.__db.select(self.__StatesTableName, ["State_Num"], f"Id_State = {prevState[0][0]}")
+        elif action == "UpdateState":#Обновление статуса пользователя
+            if self._debug_: print(f"Update state of user with id {idUser} to state with number {amount}")
+            prevState = self.__db.select(self.__UsersStatesTableName, ["Id_State"], f"Id_User = {id}")
+            prevState = self.__db.select(self.__StatesTableName,["State_Num"],f"Id_State = {prevState[0][0]}")
+            stateId = self.__db.select(self.__StatesTableName,["Id_State"],f"State_Num = {amount}")
+            self.__db.updateCl(self.__UsersStatesTableName,[f"Id_State = {stateId[0][0]}"],f"Id_User = {id}")
+            res = (amount,prevState[0][0])
 
         return res
 
-    def BankAddPoints(self,id, amount):
+    def AddPoints(self,id, amount): #Публичная функция для добавления очков
         """Добавляет пользователю по его id некоторое (amount) кол-во баллов. Если пользователь есть в бд - обновит его кол-во баллов. Если нет - добавит в таблицы с 0 по умолчанию и добавит к 0.
          \n Возвращает turple в формате : \n(итого, на_сколько_изменяли, сколько_было)"""
         final = int(self.__DoAction("Add", id, amount)[0][0])
         return (final, amount, final - amount)
 
-    def BankSubstractPoints(self,id, amount):
+    def SubstractPoints(self,id, amount): #Вычитание очков у пользователя
         """Вычитает у  пользователя по его id некоторое (amount) кол-во баллов. Если пользователь есть в бд - обновит его кол-во баллов. Если нет - добавит в таблицы с 0 по умолчанию и отбавит у 0.
         \nВозвращает turple в формате : \n(итого, на_сколько_изменяли, сколько_было)
         """
-
         final = int(self.__DoAction("Subs", id, amount)[0][0])
-        return (final + amount, amount,final )
+        return (final ,amount, final + amount)
 
-    def BankGetBalance(self,id):
+    def GetBalance(self,id):#Получить текущее кол-во очков пользователя
         """Ищет баланс пользователя с некоторым id. Если пользователя нет в бд - добавит и вернет его кол-ко баллов (0).
         \nВозвращает число - кол-во баллов
         """
         final = self.__DoAction("Balance", id)
         return final[0][0]
 
+    def GetUserState(self,id): #Получить текущий статус пользователя
+        """Возвращает статус пользователя с некоторым id
+                """
+        final = self.__DoAction("GetState", id)
+        return final[0][0]
 
-    def __init__(self,dbName):
-        self.__dbName__ = dbName
-        self.db = Database(self.__dbName__)
-        self.initialTables()
+    def SetUserState(self,id,state): #Изменить текущий статус пользователя
+        """Изменяет статус пользователя с некоторым id на статус state (номер статуса 0-4). Если указан иной - изменнеие не произойдет. Нужно добавлять в БД вариант и обновлять функцию для инициализации
+                """
+        final = self.__DoAction("UpdateState", id,state)
+        return final
+
+
+    def __init__(self,dbName,debug = False):
+        self.__dbName = dbName #Вбиваем имя бд
+        self.__debug =debug #устанавливаем режим отладки
+        self.__db = Database(self.__dbName,self.__debug) #создаем и инициализируем подключение к бд
+        self.__initialTables() #Создаем таблицы и первичные значения. Уже созданы? Будут пропущенно создание

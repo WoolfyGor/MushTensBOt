@@ -124,9 +124,12 @@ class MTFeatures():
             if self._debug_: print(f"Update state of user with id {idUser} to state with number {amount}")
             prevState = self.__db.select(self.__UsersStatesTableName, ["Id_State"], f"Id_User = {id}")
             prevState = self.__db.select(self.__StatesTableName,["State_Num"],f"Id_State = {prevState[0][0]}")
-            stateId = self.__db.select(self.__StatesTableName,["Id_State"],f"State_Num = {amount}")
-            self.__db.updateCl(self.__UsersStatesTableName,[f"Id_State = {stateId[0][0]}"],f"Id_User = {id}")
-            res = (amount,prevState[0][0])
+            try:
+                stateId = self.__db.select(self.__StatesTableName,["Id_State"],f"State_Num = {amount}")
+                self.__db.updateCl(self.__UsersStatesTableName,[f"Id_State = {stateId[0][0]}"],f"Id_User = {id}")
+                res = (amount,prevState[0][0])
+            except:
+                res = None
 
         return res
 
@@ -161,6 +164,8 @@ class MTFeatures():
                 """
         final = self.__DoAction("UpdateState", id,state)
         return final
+
+
 
 
     def __init__(self,dbName,debug = False):

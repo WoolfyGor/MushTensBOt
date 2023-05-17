@@ -102,7 +102,37 @@ class MTFeatures():
         self.__db.insert(self.__UsersStatesTableName, [(res[0][0],)], ["Id_User"]) #Добавляем в таблицу состояний (статусов)
         return res[0] #Возращаем id по сетке
 
-    def __DoAction(self,action, idUser,amount=None):  # В зависимости от action выполняем разные действия - прибалвяем баллы, вычитаем баллы, получаем баланс
+    def __UpdateUserState(self,idUser,state,sender_id):
+        prevState = self.__db.select(self.__UsersStatesTableName, ["Id_State"], f"Id_User = {idUser}")
+        prevState = self.__db.select(self.__StatesTableName, ["State_Num"], f"Id_State = {prevState[0][0]}")[0][0]
+        if sender_id == None:
+            try:
+                stateId = self.__db.select(self.__StatesTableName, ["Id_State"], f"State_Num = {state}")
+                self.__db.updateCl(self.__UsersStatesTableName, [f"Id_State = {stateId[0][0]}"], f"Id_User = {idUser}")
+                res = (state, prevState)
+            except:
+                res = None
+        else:
+            localSenderId = self.__GetOrCreateUser(sender_id)
+            localSenderState =self.__db.select(self.__UsersStatesTableName, ["Id_State"], f"Id_User = {localSenderId[0]}")
+            localSenderState = self.__db.select(self.__StatesTableName, ["State_Num"], f"Id_State = {localSenderState[0][0]}")[0][0]
+            if self._debug_ == True:print(f"Отправитель со статусом {localSenderState} пытается изменить статус на {state} у пользователя со статусом {prevState}")
+            if localSenderState>=prevState and localSenderState>=state:
+                try:
+                    if self._debug_ == True: print(f"Успешно изменяю")
+                    stateId = self.__db.select(self.__StatesTableName, ["Id_State"], f"State_Num = {state}")
+                    self.__db.updateCl(self.__UsersStatesTableName, [f"Id_State = {stateId[0][0]}"], f"Id_User = {idUser}")
+                    res = (state, prevState)
+                except:
+                    res = None
+            else:
+                res = None
+        return res
+
+
+
+
+    def __DoAction(self,action, idUser,amount=None, sender_id=None):  # В зависимости от action выполняем разные действия - прибалвяем баллы, вычитаем баллы, получаем баланс
         id = self.__GetOrCreateUser(idUser)[0] #Получаем id пользователя по сетке
         res = None
         if action == "Add":#Добавление юзеру очков
@@ -122,14 +152,10 @@ class MTFeatures():
             res = self.__db.select(self.__StatesTableName, ["State_Num"], f"Id_State = {prevState[0][0]}")
         elif action == "UpdateState":#Обновление статуса пользователя
             if self._debug_: print(f"Update state of user with id {idUser} to state with number {amount}")
-            prevState = self.__db.select(self.__UsersStatesTableName, ["Id_State"], f"Id_User = {id}")
-            prevState = self.__db.select(self.__StatesTableName,["State_Num"],f"Id_State = {prevState[0][0]}")
-            try:
-                stateId = self.__db.select(self.__StatesTableName,["Id_State"],f"State_Num = {amount}")
-                self.__db.updateCl(self.__UsersStatesTableName,[f"Id_State = {stateId[0][0]}"],f"Id_User = {id}")
-                res = (amount,prevState[0][0])
-            except:
-                res = None
+            res = self.__UpdateUserState(id,amount,sender_id)
+        elif action == "ClearPoints":#Очищение очков
+            self.__db.updateCl(self.__BankTableName,[f"Bank_Currency = 0"], f"Id_User = {id}")
+            res = 0
 
         return res
 
@@ -146,6 +172,13 @@ class MTFeatures():
         final = int(self.__DoAction("Subs", id, amount)[0][0])
         return (final ,amount, final + amount)
 
+    def ClearPoints(self,id): #Вычитание очков у пользователя
+        """Очищает кол-во баллов у некоторого пользователя по его id. Если пользователь есть в бд - обновит его кол-во баллов. Если нет - добавит в таблицы с 0 по умолчанию и отбавит у 0.
+        \nВозвращает turple в формате : \n(итого, на_сколько_изменяли, сколько_было)
+        """
+        final = self.__DoAction("ClearPoints", id)
+        return final
+
     def GetBalance(self,id):#Получить текущее кол-во очков пользователя
         """Ищет баланс пользователя с некоторым id. Если пользователя нет в бд - добавит и вернет его кол-ко баллов (0).
         \nВозвращает число - кол-во баллов
@@ -159,10 +192,10 @@ class MTFeatures():
         final = self.__DoAction("GetState", id)
         return final[0][0]
 
-    def SetUserState(self,id,state): #Изменить текущий статус пользователя
+    def SetUserState(self,id,state,sender_id = None): #Изменить текущий статус пользователя
         """Изменяет статус пользователя с некоторым id на статус state (номер статуса 0-4). Если указан иной - изменнеие не произойдет. Нужно добавлять в БД вариант и обновлять функцию для инициализации
                 """
-        final = self.__DoAction("UpdateState", id,state)
+        final = self.__DoAction("UpdateState", id,state,sender_id)
         return final
 
 
@@ -170,6 +203,6 @@ class MTFeatures():
 
     def __init__(self,dbName,debug = False):
         self.__dbName = dbName #Вбиваем имя бд
-        self.__debug =debug #устанавливаем режим отладки
-        self.__db = Database(self.__dbName,self.__debug) #создаем и инициализируем подключение к бд
+        self._debug_ =debug #устанавливаем режим отладки
+        self.__db = Database(self.__dbName,self._debug_) #создаем и инициализируем подключение к бд
         self.__initialTables() #Создаем таблицы и первичные значения. Уже созданы? Будут пропущенно создание

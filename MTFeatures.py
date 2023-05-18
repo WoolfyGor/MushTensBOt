@@ -133,7 +133,8 @@ class MTFeatures():
 
 
     def __DoAction(self,action, idUser,amount=None, sender_id=None):  # В зависимости от action выполняем разные действия - прибалвяем баллы, вычитаем баллы, получаем баланс
-        id = self.__GetOrCreateUser(idUser)[0] #Получаем id пользователя по сетке
+        if idUser:
+            id = self.__GetOrCreateUser(idUser)[0] #Получаем id пользователя по сетке
         res = None
         if action == "Add":#Добавление юзеру очков
             if self._debug_ : print(f"Adding to user {idUser} {amount} points")
@@ -156,6 +157,8 @@ class MTFeatures():
         elif action == "ClearPoints":#Очищение очков
             self.__db.updateCl(self.__BankTableName,[f"Bank_Currency = 0"], f"Id_User = {id}")
             res = 0
+        elif action == "HARDClear":
+            self.__db.updateCl(self.__BankTableName,[f"Bank_Currency = 0"])
 
         return res
 
@@ -177,6 +180,13 @@ class MTFeatures():
         \nВозвращает turple в формате : \n(итого, на_сколько_изменяли, сколько_было)
         """
         final = self.__DoAction("ClearPoints", id)
+        return final
+
+    def HARDClearPoints(self, id = None):  # Вычитание очков у пользователя
+        """Очищает кол-во баллов у некоторого пользователя по его id. Если пользователь есть в бд - обновит его кол-во баллов. Если нет - добавит в таблицы с 0 по умолчанию и отбавит у 0.
+        \nВозвращает turple в формате : \n(итого, на_сколько_изменяли, сколько_было)
+        """
+        final = self.__DoAction("HARDClear", id)
         return final
 
     def GetBalance(self,id):#Получить текущее кол-во очков пользователя
